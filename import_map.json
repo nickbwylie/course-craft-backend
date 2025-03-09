@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "oak": "https://deno.land/x/oak@v12.5.0/mod.ts",
+    "oakCors": "https://deno.land/x/oak_cors/mod.ts",
+    "postgres": "https://deno.land/x/postgres@v0.17.0/mod.ts",
+    "dotenv": "https://deno.land/x/dotenv@v3.2.2/mod.ts",
+    "createClient": "https://esm.sh/@supabase/supabase-js@2"
+  }
+}
