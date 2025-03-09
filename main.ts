@@ -355,35 +355,62 @@ const allowedDomains = [
   "course-craft-git-master-nick-wylies-projects.vercel.app",
 ];
 
-// CORS middleware with more flexible origin checking
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://course-craft-nick-wylies-projects.vercel.app",
+  "https://course-craft-six.vercel.app",
+  "https://course-craft-git-master-nick-wylies-projects.vercel.app",
+];
+
 app.use(
   oakCors({
     origin: (requestOrigin) => {
-      if (!requestOrigin) return true;
-
-      // Remove trailing slash if present for comparison
-      const normalizedOrigin = requestOrigin.endsWith("/")
-        ? requestOrigin.slice(0, -1)
-        : requestOrigin;
-
-      // Check if any allowed domain is contained in the normalized origin
-      const isAllowed = allowedDomains.some(
-        (domain) =>
-          normalizedOrigin === `http://${domain}` ||
-          normalizedOrigin === `https://${domain}`
-      );
-
-      console.log(`Origin ${requestOrigin} allowed: ${isAllowed}`);
-
-      return isAllowed ? requestOrigin : false;
+      console.log(`CORS check for: ${requestOrigin}`);
+      if (!requestOrigin) return allowedOrigins[0];
+      return allowedOrigins.includes(requestOrigin) ? requestOrigin : "null";
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true, // Add this if you need to send cookies
-    maxAge: 86400, // Cache preflight requests for 1 day
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    credentials: true,
   })
 );
 
+app.use(async (ctx, next) => {
+  const origin = ctx.request.headers.get("origin");
+  console.log(`Request from origin: ${origin}`);
+
+  // Allow only trusted origins
+  if (origin && allowedOrigins.includes(origin)) {
+    ctx.response.headers.set("Access-Control-Allow-Origin", origin);
+  } else {
+    // Optionally set a default allowed origin (or block unknown origins)
+    ctx.response.headers.set(
+      "Access-Control-Allow-Origin",
+      "https://course-craft-six.vercel.app"
+    );
+  }
+
+  ctx.response.headers.set(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+  ctx.response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
+  ctx.response.headers.set("Access-Control-Max-Age", "86400");
+
+  // Handle preflight requests
+  if (ctx.request.method === "OPTIONS") {
+    ctx.response.status = 204;
+    return;
+  }
+
+  await next();
+});
+
 app.use(router.routes());
 app.use(router.allowedMethods());
-console.log("Server is running on http://localhost:8000");
+
 await app.listen({ port: 8000 });
