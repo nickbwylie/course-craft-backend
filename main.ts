@@ -347,14 +347,6 @@ router.post("/delete_course", authenticateToken, async (context: Context) => {
 // Application Setup
 const app = new Application();
 
-// Base domains to allow (without trailing slashes)
-const allowedDomains = [
-  "localhost:5173",
-  "course-craft-nick-wylies-projects.vercel.app",
-  "course-craft-six.vercel.app",
-  "course-craft-git-master-nick-wylies-projects.vercel.app",
-];
-
 const allowedOrigins = [
   "http://localhost:5173",
   "https://course-craft-nick-wylies-projects.vercel.app",
@@ -362,32 +354,16 @@ const allowedOrigins = [
   "https://course-craft-git-master-nick-wylies-projects.vercel.app",
 ];
 
-app.use(
-  oakCors({
-    origin: (requestOrigin) => {
-      console.log(`CORS check for: ${requestOrigin}`);
-      if (!requestOrigin) return allowedOrigins[0];
-      return allowedOrigins.includes(requestOrigin) ? requestOrigin : "null";
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    credentials: true,
-  })
-);
-
 app.use(async (ctx, next) => {
   const origin = ctx.request.headers.get("origin");
   console.log(`Request from origin: ${origin}`);
 
-  // Allow only trusted origins
-  if (origin && allowedOrigins.includes(origin)) {
+  // Ensure the origin is correctly set in the headers
+  if (origin && allowedOrigins.some((o) => o === origin)) {
     ctx.response.headers.set("Access-Control-Allow-Origin", origin);
   } else {
-    // Optionally set a default allowed origin (or block unknown origins)
-    ctx.response.headers.set(
-      "Access-Control-Allow-Origin",
-      "https://course-craft-six.vercel.app"
-    );
+    console.warn(`Blocked CORS request from ${origin}`);
+    ctx.response.headers.set("Access-Control-Allow-Origin", "null"); // Or set a default
   }
 
   ctx.response.headers.set(
