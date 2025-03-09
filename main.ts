@@ -362,8 +362,6 @@ app.use(
       return allowedSites.includes(requestOrigin) ? requestOrigin : false;
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
