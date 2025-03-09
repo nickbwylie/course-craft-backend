@@ -352,6 +352,8 @@ const allowedOrigins = [
   "https://course-craft-nick-wylies-projects.vercel.app",
   "https://course-craft-six.vercel.app",
   "https://course-craft-git-master-nick-wylies-projects.vercel.app",
+  "https://www.course-craft.tech",
+  "https://course-craft.tech",
 ];
 
 app.use(async (ctx, next) => {
