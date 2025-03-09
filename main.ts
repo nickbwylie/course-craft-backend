@@ -346,32 +346,42 @@ router.post("/delete_course", authenticateToken, async (context: Context) => {
 
 // Application Setup
 const app = new Application();
-const allowedSites = [
-  "http://localhost:5173",
-  "https://course-craft-nick-wylies-projects.vercel.app",
-  "https://course-craft-six.vercel.app",
-  "https://course-craft-git-master-nick-wylies-projects.vercel.app",
+
+// Base domains to allow (without trailing slashes)
+const allowedDomains = [
+  "localhost:5173",
+  "course-craft-nick-wylies-projects.vercel.app",
+  "course-craft-six.vercel.app",
+  "course-craft-git-master-nick-wylies-projects.vercel.app",
 ];
 
-// CORS middleware using the allowedSites array
+// CORS middleware with more flexible origin checking
 app.use(
   oakCors({
     origin: (requestOrigin) => {
       if (!requestOrigin) return true;
-      // Check if the request origin is in the allowed list
-      return allowedSites.includes(requestOrigin) ? requestOrigin : false;
+
+      // Remove trailing slash if present for comparison
+      const normalizedOrigin = requestOrigin.endsWith("/")
+        ? requestOrigin.slice(0, -1)
+        : requestOrigin;
+
+      // Check if any allowed domain is contained in the normalized origin
+      const isAllowed = allowedDomains.some(
+        (domain) =>
+          normalizedOrigin === `http://${domain}` ||
+          normalizedOrigin === `https://${domain}`
+      );
+
+      console.log(`Origin ${requestOrigin} allowed: ${isAllowed}`);
+
+      return isAllowed ? requestOrigin : false;
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true, // Add this if you need to send cookies
+    maxAge: 86400, // Cache preflight requests for 1 day
   })
 );
-
-// Remove this manual OPTIONS handling since oakCors will handle it
-// app.use((context, next) => {
-//   if (context.request.method === "OPTIONS") {
-//     ...
-//   }
-//   return next();
-// });
 
 app.use(router.routes());
 app.use(router.allowedMethods());
