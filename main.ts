@@ -346,36 +346,36 @@ router.post("/delete_course", authenticateToken, async (context: Context) => {
 
 // Application Setup
 const app = new Application();
+const allowedSites = [
+  "http://localhost:5173",
+  "https://course-craft-nick-wylies-projects.vercel.app",
+  "https://course-craft-six.vercel.app",
+  "https://course-craft-git-master-nick-wylies-projects.vercel.app",
+];
 
-//cors
+// CORS middleware using the allowedSites array
 app.use(
   oakCors({
-    origin: "http://localhost:5175", // Allow requests from your frontend
+    origin: (requestOrigin) => {
+      if (!requestOrigin) return true;
+      // Check if the request origin is in the allowed list
+      return allowedSites.includes(requestOrigin) ? requestOrigin : false;
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-app.use((context, next) => {
-  if (context.request.method === "OPTIONS") {
-    context.response.status = 204;
-    context.response.headers.set(
-      "Access-Control-Allow-Origin",
-      "http://localhost:5175"
-    );
-    context.response.headers.set(
-      "Access-Control-Allow-Methods",
-      "GET, POST, PUT, DELETE, OPTIONS"
-    );
-    context.response.headers.set(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization"
-    );
-    return;
-  }
-  return next();
-});
+
+// Remove this manual OPTIONS handling since oakCors will handle it
+// app.use((context, next) => {
+//   if (context.request.method === "OPTIONS") {
+//     ...
+//   }
+//   return next();
+// });
 
 app.use(router.routes());
 app.use(router.allowedMethods());
-
 console.log("Server is running on http://localhost:8000");
 await app.listen({ port: 8000 });
