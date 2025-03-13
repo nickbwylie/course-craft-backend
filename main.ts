@@ -361,12 +361,31 @@ app.use(async (ctx, next) => {
   const origin = ctx.request.headers.get("origin");
   console.log(`Request from origin: ${origin}`);
 
-  // Ensure the origin is correctly set in the headers
-  if (origin && allowedOrigins.some((o) => o === origin)) {
-    ctx.response.headers.set("Access-Control-Allow-Origin", origin);
+  // For debugging - log the full request
+  console.log(`${ctx.request.method} ${ctx.request.url.pathname}`);
+
+  if (origin) {
+    // More flexible origin check
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.startsWith("http://localhost:") ||
+      origin.includes("course-craft.tech")
+    ) {
+      ctx.response.headers.set("Access-Control-Allow-Origin", origin);
+    } else {
+      console.warn(`Blocked CORS request from ${origin}`);
+      // Set to a specific allowed origin instead of "null"
+      ctx.response.headers.set(
+        "Access-Control-Allow-Origin",
+        "https://course-craft.tech"
+      );
+    }
   } else {
-    console.warn(`Blocked CORS request from ${origin}`);
-    ctx.response.headers.set("Access-Control-Allow-Origin", "null"); // Or set a default
+    // If no origin header, set a default allowed origin
+    ctx.response.headers.set(
+      "Access-Control-Allow-Origin",
+      "https://course-craft.tech"
+    );
   }
 
   ctx.response.headers.set(
