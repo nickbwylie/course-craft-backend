@@ -357,38 +357,13 @@ const allowedOrigins = [
   "https://course-craft.tech/create",
 ];
 
+// AT THE VERY TOP of your middleware stack
 app.use(async (ctx, next) => {
-  const origin = ctx.request.headers.get("origin");
-  console.log(`Request from origin: ${origin}`);
+  // Set wildcard CORS headers (only for debugging)
+  ctx.response.headers.set("Access-Control-Allow-Origin", "*");
+  ctx.response.headers.set("Access-Control-Allow-Methods", "*");
+  ctx.response.headers.set("Access-Control-Allow-Headers", "*");
 
-  // CRITICAL FIX: Always match the actual origin if it's allowed
-  if (origin) {
-    // Check if this is from a trusted source
-    if (
-      origin.includes("course-craft.tech") ||
-      origin.startsWith("http://localhost:") ||
-      allowedOrigins.includes(origin)
-    ) {
-      // Set the Access-Control-Allow-Origin header to match the requestor's origin
-      ctx.response.headers.set("Access-Control-Allow-Origin", origin);
-
-      // Also set these headers for credentialed requests
-      ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
-      ctx.response.headers.set(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS"
-      );
-      ctx.response.headers.set(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization, X-Requested-With"
-      );
-    } else {
-      console.warn(`Rejecting request from non-allowed origin: ${origin}`);
-      // Don't set the Allow-Origin header for non-allowed origins
-    }
-  }
-
-  // Handle preflight requests
   if (ctx.request.method === "OPTIONS") {
     ctx.response.status = 204;
     return;
@@ -396,7 +371,6 @@ app.use(async (ctx, next) => {
 
   await next();
 });
-
 app.use(router.routes());
 app.use(router.allowedMethods());
 
