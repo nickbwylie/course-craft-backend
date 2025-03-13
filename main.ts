@@ -361,43 +361,32 @@ app.use(async (ctx, next) => {
   const origin = ctx.request.headers.get("origin");
   console.log(`Request from origin: ${origin}`);
 
-  // For debugging - log the full request
-  console.log(`${ctx.request.method} ${ctx.request.url.pathname}`);
-
+  // CRITICAL FIX: Always match the actual origin if it's allowed
   if (origin) {
-    // More flexible origin check
+    // Check if this is from a trusted source
     if (
-      allowedOrigins.includes(origin) ||
+      origin.includes("course-craft.tech") ||
       origin.startsWith("http://localhost:") ||
-      origin.includes("course-craft.tech")
+      allowedOrigins.includes(origin)
     ) {
+      // Set the Access-Control-Allow-Origin header to match the requestor's origin
       ctx.response.headers.set("Access-Control-Allow-Origin", origin);
-    } else {
-      console.warn(`Blocked CORS request from ${origin}`);
-      // Set to a specific allowed origin instead of "null"
-      ctx.response.headers.set(
-        "Access-Control-Allow-Origin",
-        "https://course-craft.tech"
-      );
-    }
-  } else {
-    // If no origin header, set a default allowed origin
-    ctx.response.headers.set(
-      "Access-Control-Allow-Origin",
-      "https://course-craft.tech"
-    );
-  }
 
-  ctx.response.headers.set(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
-  );
-  ctx.response.headers.set(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With"
-  );
-  ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
-  ctx.response.headers.set("Access-Control-Max-Age", "86400");
+      // Also set these headers for credentialed requests
+      ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
+      ctx.response.headers.set(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS"
+      );
+      ctx.response.headers.set(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, X-Requested-With"
+      );
+    } else {
+      console.warn(`Rejecting request from non-allowed origin: ${origin}`);
+      // Don't set the Allow-Origin header for non-allowed origins
+    }
+  }
 
   // Handle preflight requests
   if (ctx.request.method === "OPTIONS") {
