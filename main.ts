@@ -345,6 +345,7 @@ router.post("/delete_course", authenticateToken, async (context: Context) => {
 // });
 
 // Application Setup
+// Application Setup
 const app = new Application();
 
 const allowedOrigins = [
@@ -354,16 +355,32 @@ const allowedOrigins = [
   "https://course-craft-git-master-nick-wylies-projects.vercel.app",
   "https://www.course-craft.tech",
   "https://course-craft.tech",
-  "https://course-craft.tech/create",
 ];
 
-// AT THE VERY TOP of your middleware stack
 app.use(async (ctx, next) => {
-  // Set wildcard CORS headers (only for debugging)
-  ctx.response.headers.set("Access-Control-Allow-Origin", "*");
-  ctx.response.headers.set("Access-Control-Allow-Methods", "*");
-  ctx.response.headers.set("Access-Control-Allow-Headers", "*");
+  const origin = ctx.request.headers.get("origin");
+  console.log(`Request from origin: ${origin}`);
 
+  // Ensure the origin is correctly set in the headers
+  if (origin && allowedOrigins.some((o) => o === origin)) {
+    ctx.response.headers.set("Access-Control-Allow-Origin", origin);
+  } else {
+    console.warn(`Blocked CORS request from ${origin}`);
+    ctx.response.headers.set("Access-Control-Allow-Origin", "null"); // Or set a default
+  }
+
+  ctx.response.headers.set(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+  ctx.response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  ctx.response.headers.set("Access-Control-Allow-Credentials", "true");
+  ctx.response.headers.set("Access-Control-Max-Age", "86400");
+
+  // Handle preflight requests
   if (ctx.request.method === "OPTIONS") {
     ctx.response.status = 204;
     return;
@@ -371,6 +388,7 @@ app.use(async (ctx, next) => {
 
   await next();
 });
+
 app.use(router.routes());
 app.use(router.allowedMethods());
 
