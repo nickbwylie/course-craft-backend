@@ -1,4 +1,8 @@
-import { fetchYouTubeVideo, getCaptions } from "./youtubeApi.ts";
+import {
+  fetchChannelThumbnail,
+  fetchYouTubeVideo,
+  getCaptions,
+} from "./youtubeApi.ts";
 import { addVideo, addSummary, addQuiz } from "./database.ts";
 import { generateQuiz, generateFinalSummary } from "./gptHandlers.ts";
 import { getSupabase } from "./supabaseClient.ts";
@@ -13,6 +17,9 @@ export async function addVideoToDb(
 ) {
   // Fetch video details
   const videoData = await fetchYouTubeVideo(youtube_id);
+  const channelThumbnail = await fetchChannelThumbnail(
+    videoData.items[0]?.snippet?.channelId
+  );
 
   const transcript = await getCaptions(youtube_id);
 
@@ -32,6 +39,8 @@ export async function addVideoToDb(
     publishedAt: videoData.items[0]?.snippet?.publishedAt,
     thumbnailUrl,
     tags: videoData.items[0]?.snippet?.tags || [],
+    channelThumbnail,
+    viewCount: videoData.items[0]?.statistics?.viewCount || "0",
   });
 
   if (!video_id) {

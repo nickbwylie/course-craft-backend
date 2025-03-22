@@ -1,7 +1,7 @@
 import { Application, Router, Context } from "https://deno.land/x/oak/mod.ts";
 import { load } from "https://deno.land/std/dotenv/mod.ts";
 import { oakCors } from "https://deno.land/x/cors/mod.ts";
-import { fetchYouTubeVideo } from "./youtubeApi.ts";
+import { fetchChannelThumbnail, fetchYouTubeVideo } from "./youtubeApi.ts";
 import { addCourse } from "./database.ts";
 import { addVideoToDb } from "./add_video_to_db.ts";
 import { OPENAI_API_KEY } from "./env.ts";

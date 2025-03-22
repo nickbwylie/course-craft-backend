@@ -12,6 +12,8 @@ export async function addVideo({
   publishedAt,
   thumbnailUrl,
   tags,
+  channelThumbnail,
+  viewCount,
 }: {
   title: string;
   youtube_id: string;
@@ -21,6 +23,8 @@ export async function addVideo({
   publishedAt: string;
   thumbnailUrl: string;
   tags: string[];
+  channelThumbnail?: string;
+  viewCount?: number;
 }): Promise<string | null> {
   const createdAt = new Date().toISOString();
   const video_id = uuid();
@@ -40,6 +44,8 @@ export async function addVideo({
           published_at: publishedAt,
           thumbnail_url: thumbnailUrl,
           tags,
+          channel_thumbnail: channelThumbnail,
+          view_count: viewCount || "0",
         },
       ]);
 

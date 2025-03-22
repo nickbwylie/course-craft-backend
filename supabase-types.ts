@@ -56,6 +56,7 @@ export type Database = {
           description: string | null
           detailLevel: string
           id: string
+          public: boolean | null
           title: string | null
         }
         Insert: {
@@ -65,6 +66,7 @@ export type Database = {
           description?: string | null
           detailLevel?: string
           id?: string
+          public?: boolean | null
           title?: string | null
         }
         Update: {
@@ -74,17 +76,10 @@ export type Database = {
           description?: string | null
           detailLevel?: string
           id?: string
+          public?: boolean | null
           title?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "courses_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       quizzes: {
         Row: {
@@ -209,6 +204,7 @@ export type Database = {
       }
       videos: {
         Row: {
+          channel_thumbnail: string | null
           channel_title: string | null
           created_at: string
           description: string | null
@@ -221,6 +217,7 @@ export type Database = {
           youtube_id: string
         }
         Insert: {
+          channel_thumbnail?: string | null
           channel_title?: string | null
           created_at?: string
           description?: string | null
@@ -233,6 +230,7 @@ export type Database = {
           youtube_id?: string
         }
         Update: {
+          channel_thumbnail?: string | null
           channel_title?: string | null
           created_at?: string
           description?: string | null
@@ -346,6 +344,7 @@ export type Database = {
           created_at: string
           course_difficulty: number
           detaillevel: string
+          public: boolean
         }[]
       }
       get_user_courses_with_first_video_and_duration: {
@@ -364,6 +363,7 @@ export type Database = {
           created_at: string
           course_difficulty: number
           detaillevel: string
+          public: boolean
         }[]
       }
     }
