@@ -7,9 +7,21 @@ import { addVideoToDb } from "./add_video_to_db.ts";
 import { OPENAI_API_KEY } from "./env.ts";
 import { verify } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 import { getSupabase, setSupabase } from "./supabaseClient.ts";
+import {
+  PollyClient,
+  SynthesizeSpeechCommand,
+} from "npm:@aws-sdk/client-polly";
 
 const env = await load();
 const SUPABASE_JWT_SECRET = env.SUPABASE_JWT_SECRET;
+
+const polly = new PollyClient({
+  region: "us-east-1",
+  credentials: {
+    accessKeyId: env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
 async function authenticateToken(ctx: Context, next: () => Promise<unknown>) {
   const authHeader = ctx.request.headers.get("Authorization");
@@ -316,6 +328,77 @@ router.post("/delete_course", authenticateToken, async (context: Context) => {
     console.error("Error processing request:", error);
     context.response.status = 500;
     context.response.body = { error: "Internal server error" };
+  }
+});
+
+function splitTextByLength(text: string, maxChunkLength = 2800): string[] {
+  const sentences = text.match(/[^\.!\?]+[\.!\?]+/g) || [text]; // basic sentence split
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  for (const sentence of sentences) {
+    if ((currentChunk + sentence).length > maxChunkLength) {
+      chunks.push(currentChunk);
+      currentChunk = sentence;
+    } else {
+      currentChunk += sentence;
+    }
+  }
+
+  if (currentChunk) chunks.push(currentChunk);
+  return chunks;
+}
+
+router.post("/text_to_speech", authenticateToken, async (context) => {
+  try {
+    const body = await context.request.body.json();
+    const { voice, text } = body;
+    const textChunks = splitTextByLength(text);
+
+    // Define a helper function to process each text chunk.
+    const synthesizeChunk = async (chunk: string): Promise<Uint8Array> => {
+      const command = new SynthesizeSpeechCommand({
+        OutputFormat: "mp3",
+        Text: chunk,
+        VoiceId: voice || "Ruth",
+        Engine: "long-form",
+      });
+
+      const response = await polly.send(command);
+      const audioChunks: Uint8Array[] = [];
+
+      // Read the AudioStream from Polly.
+      for await (const piece of response.AudioStream as AsyncIterable<Uint8Array>) {
+        audioChunks.push(piece);
+      }
+
+      // Combine all chunks into one Uint8Array.
+      const totalLength = audioChunks.reduce((sum, c) => sum + c.length, 0);
+      const buffer = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const piece of audioChunks) {
+        buffer.set(piece, offset);
+        offset += piece.length;
+      }
+      return buffer;
+    };
+
+    // Process all chunks concurrently.
+    const audioBuffers: Uint8Array[] = await Promise.all(
+      textChunks.map((chunk) => synthesizeChunk(chunk))
+    );
+
+    // Option: If your client supports binary streaming,
+    // you might stream the binary data directly with the proper Content-Type.
+    // For now, we convert each buffer to a JSON-safe array.
+    context.response.status = 200;
+    context.response.body = {
+      audioParts: audioBuffers.map((buf) => Array.from(buf)),
+    };
+  } catch (err) {
+    console.error("Polly Error:", err);
+    context.response.status = 500;
+    context.response.body = { error: "Polly TTS failed" };
   }
 });
 
