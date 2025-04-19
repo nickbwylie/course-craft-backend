@@ -1,9 +1,8 @@
 import { Application, Router, Context } from "https://deno.land/x/oak/mod.ts";
 import { load } from "https://deno.land/std/dotenv/mod.ts";
-import { oakCors } from "https://deno.land/x/cors/mod.ts";
-import { fetchChannelThumbnail, fetchYouTubeVideo } from "./youtubeApi.ts";
+import { fetchYouTubeVideo } from "./youtubeApi.ts";
 import { addCourse } from "./database.ts";
-import { addVideoToDb } from "./add_video_to_db.ts";
+import { addVideoToDb, addVideoToDbUsingEmbedding } from "./add_video_to_db.ts";
 import { OPENAI_API_KEY } from "./env.ts";
 import { verify } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 import { getSupabase, setSupabase } from "./supabaseClient.ts";
@@ -11,9 +10,22 @@ import {
   PollyClient,
   SynthesizeSpeechCommand,
 } from "npm:@aws-sdk/client-polly";
+import { autoGenerateTitleDescription } from "./gptHandlers.ts";
+import Stripe from "npm:stripe";
+import { tokenPackages, TokenPackages } from "./tokenPackage.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const YOUR_DOMAIN =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:5173"
+    : "https://course-craft.tech";
 
 const env = await load();
 const SUPABASE_JWT_SECRET = env.SUPABASE_JWT_SECRET;
+
+const stripe = new Stripe(env.STRIPE_TEST_SCECRET_KEY, {
+  apiVersion: "2025-03-31.basil",
+});
 
 const polly = new PollyClient({
   region: "us-east-1",
@@ -112,6 +124,157 @@ router.get(
     } else {
       context.response.status = 400;
       context.response.body = { error: "videoId is required" };
+    }
+  }
+);
+
+router.post(
+  "/create_course_embed",
+  authenticateToken,
+  async (context: Context) => {
+    try {
+      // Access the body getter
+      const body = await context.request.body.json();
+
+      // Ensure the body type is JSON
+      if (!body) {
+        context.response.status = 400;
+        context.response.body = {
+          error: "Invalid content type. Expected JSON.",
+        };
+        return;
+      }
+
+      const token = (context.request as any).token;
+      if (!token) {
+        context.response.status = 401;
+        context.response.body = { error: "Token missing" };
+        return;
+      }
+
+      const userInfo = await getSupabase()
+        .from("users")
+        .select("*")
+        .eq("id", body.user_id)
+        .single();
+
+      if (!userInfo || !userInfo.data) {
+        context.response.status = 401;
+        context.response.body = { error: "User not found" };
+        return;
+      }
+
+      if (userInfo.data?.credits < 1) {
+        context.response.status = 401;
+        context.response.body = { error: "Not enough credits" };
+        return;
+      }
+
+      // Parse the JSON value
+      const {
+        title,
+        description,
+        youtube_ids,
+        user_id,
+        difficulty,
+        questionCount,
+        summary_detail,
+        is_public,
+      } = body;
+
+      if (
+        !title ||
+        !description ||
+        !youtube_ids ||
+        !user_id ||
+        youtube_ids?.length === 0 ||
+        !difficulty ||
+        !questionCount ||
+        !summary_detail
+      ) {
+        context.response.status = 400;
+        context.response.body = { error: "Missing required fields." };
+        return;
+      }
+
+      const { status, course_id } = await addCourse({
+        title: title,
+        description: description,
+        courseDifficulty: difficulty,
+        detailLevel: summary_detail,
+        user_id: user_id,
+        is_public: is_public,
+      });
+
+      if (!course_id || status === "error") {
+        console.log(status);
+        throw new Error("failed to add course id");
+      }
+
+      const tasks = youtube_ids?.map(
+        async (youtube_id: string, index: number) => {
+          try {
+            console.log(`video id ${youtube_id} index ${index}`);
+            await addVideoToDbUsingEmbedding(
+              youtube_id,
+              course_id,
+              index,
+              difficulty,
+              questionCount,
+              summary_detail
+            );
+
+            // update currents users credits
+            const { data, error } = await getSupabase()
+              .from("users")
+              .update({ credits: userInfo.data.credits - 1 })
+              .eq("id", user_id);
+
+            return { youtube_id, status: "success" };
+          } catch (error) {
+            return { youtube_id, status: "failed" };
+          }
+        }
+      );
+
+      const results = await Promise.allSettled(tasks);
+
+      // Separate successes and failures
+      const success: string[] = [];
+      const failed: string[] = [];
+
+      results.forEach((result) => {
+        if (result.status === "fulfilled") {
+          // Access value for fulfilled promises
+          if (result.value.status === "success") {
+            success.push(result.value.video_id);
+          } else {
+            failed.push(result.value.video_id);
+          }
+        } else if (result.status === "rejected") {
+          // Handle rejected promises
+          console.error("Unhandled error:", result.reason);
+        }
+      });
+
+      if (failed.length > 0) {
+        context.response.status = 200; // Created with errors adding
+        context.response.body = {
+          message: `Course '${title}' created successfully`,
+          failedToAdd: failed,
+          course_id,
+        };
+      } else {
+        context.response.status = 201; // Created
+        context.response.body = {
+          message: `Course '${title}' created successfully!`,
+          course_id,
+        };
+      }
+    } catch (error) {
+      console.error("Error processing request:", error);
+      context.response.status = 500;
+      context.response.body = { error: "Internal server error" };
     }
   }
 );
@@ -331,6 +494,42 @@ router.post("/delete_course", authenticateToken, async (context: Context) => {
   }
 });
 
+router.post(
+  "/generate_title_description",
+  authenticateToken,
+  async (context: Context) => {
+    try {
+      const body = await context.request.body.json();
+      // data sent over
+      // [ {channel: string, title string}
+      //]
+      const { videoInfo } = body;
+      if (!videoInfo || videoInfo.length === 0) {
+        context.response.status = 400;
+        context.response.body = { error: "videoInfo is required" };
+        return;
+      }
+      const response = await autoGenerateTitleDescription(videoInfo);
+      if (!response || !response.title || !response.description) {
+        context.response.status = 400;
+        context.response.body = {
+          error: "Failed to generate title and description",
+        };
+        return;
+      }
+      context.response.status = 200;
+      context.response.body = {
+        title: response.title,
+        description: response.description,
+      };
+    } catch (error) {
+      console.error("Error processing request:", error);
+      context.response.status = 500;
+      context.response.body = { error: "Internal server error" };
+    }
+  }
+);
+
 function splitTextByLength(text: string, maxChunkLength = 2800): string[] {
   const sentences = text.match(/[^\.!\?]+[\.!\?]+/g) || [text]; // basic sentence split
   const chunks: string[] = [];
@@ -402,55 +601,228 @@ router.post("/text_to_speech", authenticateToken, async (context) => {
   }
 });
 
-// the course videos api is under construction
-// router.post("/course_videos", async (context: Context) => {
-//   try {
-//     const body = await context.request.body.json();
+router.post("/create_payment_intent", async (context: Context) => {
+  try {
+    const { tokenPackage, currency = "usd" } =
+      await context.request.body.json();
 
-//     if (!body || !body.course_id) {
-//       context.response.status = 400;
-//       context.response.body = { error: "course_id is required" };
-//       return;
-//     }
+    if (!tokenPackage || tokenPackage === "free") {
+      context.response.status = 400;
+      context.response.body = { error: "tokenPackage is required" };
+      return;
+    }
 
-//     const { course_id } = body;
-//     const videos = await getCourseVideos(course_id);
+    let amount = 0;
+    switch (tokenPackage) {
+      case TokenPackages.starter:
+        amount = 499; // $10.00
+        break;
+      case TokenPackages.pro:
+        amount = 999;
+        break;
+      case TokenPackages.expert:
+        amount = 1999;
+        break;
+      default:
+        context.response.status = 400;
+        context.response.body = { error: "Invalid token package" };
+        return;
+    }
 
-//     const courseData = await getCourseData(course_id);
+    // amount should be an integer in cents
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency,
+      // optional: add metadata or automatic_payment_methods
+      automatic_payment_methods: { enabled: true },
+    });
 
-//     context.response.status = 200;
-//     context.response.body = { videos, courseData };
-//   } catch (error) {
-//     console.error("Error processing request:", error);
-//     context.response.status = 500;
-//     context.response.body = { error: "Internal server error" };
-//   }
-// });
+    context.response.status = 201;
+    context.response.body = { clientSecret: paymentIntent.client_secret };
+  } catch (err) {
+    console.error("Stripe error:", err);
+    context.response.status = 500;
+    context.response.body = { error: "Unable to create payment intent" };
+  }
+});
+
+router.post(
+  "/create_checkout_session",
+  authenticateToken,
+  async (context: Context) => {
+    try {
+      const { userId, priceId } = await context.request.body.json();
+
+      console.log("userId", userId);
+      console.log("priceId", priceId);
+
+      const user = await getSupabase()
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        mode: "payment",
+        customer: user.data?.stripe_customer_id || "", // ← pre‑fills email + ties session
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${YOUR_DOMAIN}/create?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${YOUR_DOMAIN}/token_store`,
+        client_reference_id: userId, // optional: your internal user ID
+        metadata: { feature: "one-time-purchase", priceId }, // any extra bits you want back
+      });
+
+      if (!session) {
+        context.response.status = 500;
+        context.response.body = { error: "Unable to create checkout session" };
+        return;
+      }
+
+      context.response.status = 200;
+      context.response.body = { url: session.url };
+    } catch (err) {}
+  }
+);
+
+router.post("/api/webhook/stripe", async (context: Context) => {
+  try {
+    const rawBody = await context.request.body.text(); // Use text() instead of json() for signature verification
+    const signature = context.request.headers.get("stripe-signature");
+
+    if (!signature) {
+      context.response.status = 400;
+      context.response.body = { error: "Missing stripe signature" };
+      return;
+    }
+
+    let event: Stripe.Event;
+    try {
+      event = await stripe.webhooks.constructEventAsync(
+        rawBody,
+        signature,
+        env.STRIPE_WEBHOOK_SECRET
+      );
+    } catch (err: any) {
+      console.error(`Webhook signature verification failed: ${err?.message}`);
+      context.response.status = 400;
+      context.response.body = { error: `Webhook Error: ${err?.message}` };
+      return;
+    }
+
+    // Handle different event types
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const supabaseAdmin = createClient(
+          env.SUPABASE_URL,
+          env.SUPABASE_SERVICE_ROLE_KEY
+        );
+        const session = event.data.object as Stripe.Checkout.Session;
+
+        const stripeCustomerId = session.customer as string;
+
+        const paymentStatus = session.payment_status;
+
+        console.log("paymentStatus", session?.metadata);
+
+        let priceId = session?.metadata?.priceId;
+        if (!priceId) {
+          priceId = session?.line_items?.data[0]?.price?.id;
+        }
+
+        const plan = tokenPackages.find((pkg) => pkg.priceId === priceId);
+
+        console.log("plan", plan);
+
+        console.log("checking out success");
+        console.log("session", session);
+
+        if (!plan) break;
+
+        if (paymentStatus === "paid") {
+          // update users credits in supabase
+          // First get the current user's credits
+          const { data: userData, error: fetchError } = await supabaseAdmin
+            .from("users")
+            .select("credits")
+            .eq("stripe_customer_id", stripeCustomerId)
+            .single();
+
+          if (fetchError || !userData) {
+            console.error("Error fetching user credits:", fetchError);
+            break;
+          }
+
+          // Then update with current credits + plan.credits
+          const { data, error } = await supabaseAdmin
+            .from("users")
+            .update({
+              credits: userData.credits + plan.tokens,
+              paid: true,
+            })
+            .eq("stripe_customer_id", stripeCustomerId);
+          console.log("updated users credits");
+
+          if (error) {
+            console.error("Error updating user credits:", error);
+          }
+        }
+        break;
+      }
+      default:
+        console.log(`Unhandled event type: ${event.type}`);
+    }
+  } catch (err) {}
+});
+
+router.post("/create_stripe_user", async (context: Context) => {
+  try {
+    const body = await context.request.body.json();
+    const { email, userId } = body;
+
+    if (!email) {
+      context.response.status = 400;
+      context.response.body = { error: "Email is required" };
+      return;
+    }
+
+    const customer = await stripe.customers.create({
+      email: email, // your user’s email
+      metadata: { userId: userId },
+    });
+
+    const customerId = customer.id;
+
+    const { data: returnData, error } = await getSupabase()
+      .from("users")
+      .insert({
+        id: userId,
+        email: email,
+        created_at: new Date().toISOString(),
+        credits: 2,
+        paid: false,
+        stripe_customer_id: customerId,
+      });
+
+    context.response.status = 201;
+    context.response.body = { customerId: customer.id };
+    return;
+  } catch (err) {
+    console.error("Stripe error:", err);
+    context.response.status = 500;
+    context.response.body = { error: "Unable to create customer" };
+  }
+  context.response.status = 201;
+  context.response.body = { message: "Stripe user created successfully" };
+});
 
 // Application Setup
 // Application Setup
 const app = new Application();
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://course-craft-nick-wylies-projects.vercel.app",
-  "https://course-craft-six.vercel.app",
-  "https://course-craft-git-master-nick-wylies-projects.vercel.app",
-  "https://www.course-craft.tech",
-  "https://course-craft.tech",
-];
-
 app.use(async (ctx, next) => {
-  const origin = ctx.request.headers.get("origin");
-  console.log(`Request from origin: ${origin}`);
-
-  // Ensure the origin is correctly set in the headers
-  if (origin && allowedOrigins.some((o) => o === origin)) {
-    ctx.response.headers.set("Access-Control-Allow-Origin", origin);
-  } else {
-    console.warn(`Blocked CORS request from ${origin}`);
-    ctx.response.headers.set("Access-Control-Allow-Origin", "null"); // Or set a default
-  }
+  // Allow all origins
+  ctx.response.headers.set("Access-Control-Allow-Origin", "*");
 
   ctx.response.headers.set(
     "Access-Control-Allow-Methods",
