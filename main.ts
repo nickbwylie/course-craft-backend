@@ -816,6 +816,64 @@ router.post("/create_stripe_user", async (context: Context) => {
   context.response.body = { message: "Stripe user created successfully" };
 });
 
+router.post(
+  "/delete_users_account_supabase",
+  authenticateToken,
+  async (context: Context) => {
+    const body = await context.request.body.json();
+    const { userId } = body;
+
+    if (!userId) {
+      context.response.status = 400;
+      context.response.body = { error: "userId is required" };
+      return;
+    }
+
+    const authHeader = context.request.headers.get("Authorization");
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
+
+    if (!token) {
+      console.log("token not found");
+
+      context.response.status = 500;
+      context.response.body = { error: "Error deleting user" };
+      return;
+    }
+
+    const { data, error } = await getSupabase().auth.getUser(token);
+
+    if (error || !data || !data.user.id || data.user.id !== userId) {
+      context.response.status = 401;
+      context.response.body = { error: "Unauthorized" };
+      return;
+    }
+
+    try {
+      const supabaseAdmin = createClient(
+        env.SUPABASE_URL,
+        env.SUPABASE_SERVICE_ROLE_KEY
+      );
+
+      const { data, error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+      if (error) {
+        console.error("Error deleting user from supabase", error);
+        context.response.status = 500;
+        context.response.body = { error: "Error deleting user" };
+        return;
+      }
+    } catch (error) {
+      context.response.status = 500;
+      context.response.body = { error: "Error deleting user" };
+      return;
+    }
+
+    context.response.status = 200;
+    context.response.body = { message: "User deleted successfully" };
+  }
+);
 // Application Setup
 // Application Setup
 const app = new Application();
