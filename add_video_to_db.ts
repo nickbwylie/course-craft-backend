@@ -89,22 +89,31 @@ export async function addVideoToDb(
   return { status: "success", video_id };
 }
 
+export async function getVideoDataTranscriptThumbnail(
+  youtube_id: string
+): Promise<{ videoData: any; transcript: string; channelThumbnail: string }> {
+  const videoData = await fetchYouTubeVideo(youtube_id);
+  const channelId = videoData.items[0]?.snippet?.channelId;
+
+  const [channelThumbnail, transcript] = await Promise.all([
+    fetchChannelThumbnail(channelId),
+    getCaptions(youtube_id),
+  ]);
+
+  return { videoData, transcript, channelThumbnail };
+}
+
 export async function addVideoToDbUsingEmbedding(
   youtube_id: string,
   courseId: string,
   order: number,
   difficulty: number,
   questionCount: number,
-  summary_detail: number
+  summary_detail: number,
+  videoData: any,
+  channelThumbnail: string,
+  transcript: string
 ) {
-  // Fetch video details
-  const videoData = await fetchYouTubeVideo(youtube_id);
-  const channelThumbnail = await fetchChannelThumbnail(
-    videoData.items[0]?.snippet?.channelId
-  );
-
-  const transcript = await getCaptions(youtube_id);
-
   // Process video data
   const thumbnailUrl =
     videoData.items[0]?.snippet?.thumbnails?.maxres?.url ??

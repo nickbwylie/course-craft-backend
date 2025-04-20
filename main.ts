@@ -2,7 +2,11 @@ import { Application, Router, Context } from "https://deno.land/x/oak/mod.ts";
 import { load } from "https://deno.land/std/dotenv/mod.ts";
 import { fetchYouTubeVideo } from "./youtubeApi.ts";
 import { addCourse } from "./database.ts";
-import { addVideoToDb, addVideoToDbUsingEmbedding } from "./add_video_to_db.ts";
+import {
+  addVideoToDb,
+  addVideoToDbUsingEmbedding,
+  getVideoDataTranscriptThumbnail,
+} from "./add_video_to_db.ts";
 import { OPENAI_API_KEY } from "./env.ts";
 import { verify } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
 import { getSupabase, setSupabase } from "./supabaseClient.ts";
@@ -197,6 +201,36 @@ router.post(
         return;
       }
 
+      // get video transcripts and data
+      const youtubeVideoData: Record<
+        string,
+        {
+          videoData: any;
+          transcript: string;
+          channelThumbnail: string;
+        }
+      > = {};
+      const failedIds: string[] = [];
+
+      for (const id of youtube_ids) {
+        try {
+          const data = await getVideoDataTranscriptThumbnail(id);
+          youtubeVideoData[id] = { ...data };
+        } catch (error) {
+          console.error(`Failed to fetch data for ID: ${id}`, error);
+          failedIds.push(id);
+        }
+      }
+
+      if (failedIds.length > 0) {
+        context.response.status = 400;
+        context.response.body = {
+          error: "Some YouTube videos failed to fetch",
+          failed_ids: failedIds.map((r) => r),
+        };
+        return;
+      }
+
       const { status, course_id } = await addCourse({
         title: title,
         description: description,
@@ -211,8 +245,8 @@ router.post(
         throw new Error("failed to add course id");
       }
 
-      const tasks = youtube_ids?.map(
-        async (youtube_id: string, index: number) => {
+      const tasks = Object.entries(youtubeVideoData).map(
+        async ([youtube_id, data], index) => {
           try {
             console.log(`video id ${youtube_id} index ${index}`);
             await addVideoToDbUsingEmbedding(
@@ -221,14 +255,11 @@ router.post(
               index,
               difficulty,
               questionCount,
-              summary_detail
+              summary_detail,
+              data.videoData,
+              data.channelThumbnail,
+              data.transcript
             );
-
-            // update currents users credits
-            const { data, error } = await getSupabase()
-              .from("users")
-              .update({ credits: userInfo.data.credits - 1 })
-              .eq("id", user_id);
 
             return { youtube_id, status: "success" };
           } catch (error) {
@@ -236,7 +267,6 @@ router.post(
           }
         }
       );
-
       const results = await Promise.allSettled(tasks);
 
       // Separate successes and failures
@@ -247,9 +277,9 @@ router.post(
         if (result.status === "fulfilled") {
           // Access value for fulfilled promises
           if (result.value.status === "success") {
-            success.push(result.value.video_id);
+            success.push(result.value.youtube_id);
           } else {
-            failed.push(result.value.video_id);
+            failed.push(result.value.youtube_id);
           }
         } else if (result.status === "rejected") {
           // Handle rejected promises
@@ -265,6 +295,12 @@ router.post(
           course_id,
         };
       } else {
+        // update currents users credits
+        const { data, error } = await getSupabase()
+          .from("users")
+          .update({ credits: userInfo.data.credits - 1 })
+          .eq("id", user_id);
+
         context.response.status = 201; // Created
         context.response.body = {
           message: `Course '${title}' created successfully!`,
@@ -278,6 +314,48 @@ router.post(
     }
   }
 );
+
+router.post("/get_youtube_transcripts", async (context: Context) => {
+  const body = await context.request.body.json();
+  const { youtube_ids } = body;
+
+  if (!youtube_ids || youtube_ids.length === 0) {
+    context.response.status = 400;
+    context.response.body = { error: "youtube_ids is required" };
+    return;
+  }
+
+  const results: any[] = [];
+  const failedIds: string[] = [];
+
+  // Run all fetches in parallel
+  const promises = youtube_ids.map(async (id: string) => {
+    try {
+      const data = await getVideoDataTranscriptThumbnail(id);
+      results.push({ youtube_id: id, ...data });
+    } catch (error) {
+      console.error(`Failed to fetch data for ID: ${id}`, error);
+      failedIds.push(id);
+    }
+  });
+
+  await Promise.all(promises);
+
+  if (failedIds.length > 0) {
+    context.response.status = 400;
+    context.response.body = {
+      error: "Some YouTube videos failed to fetch",
+      failed_ids: failedIds.map((r) => r),
+    };
+    return;
+  }
+
+  context.response.status = 200;
+  context.response.body = {
+    success: true,
+    videos: results,
+  };
+});
 
 router.post("/create_course", authenticateToken, async (context: Context) => {
   try {
