@@ -212,15 +212,22 @@ router.post(
       > = {};
       const failedIds: string[] = [];
 
-      for (const id of youtube_ids) {
-        try {
-          const data = await getVideoDataTranscriptThumbnail(id);
-          youtubeVideoData[id] = { ...data };
-        } catch (error) {
-          console.error(`Failed to fetch data for ID: ${id}`, error);
-          failedIds.push(id);
+      const getVideos = youtube_ids?.map(
+        async (youtube_id: string, index: number) => {
+          try {
+            const data = await getVideoDataTranscriptThumbnail(youtube_id);
+            youtubeVideoData[youtube_id] = { ...data };
+          } catch (error) {
+            console.error(
+              `Failed to fetch data for ID: ${youtubeVideoData}`,
+              error
+            );
+            failedIds.push(youtube_id);
+          }
         }
-      }
+      );
+
+      await Promise.allSettled(getVideos);
 
       if (failedIds.length > 0) {
         context.response.status = 400;
@@ -245,10 +252,10 @@ router.post(
         throw new Error("failed to add course id");
       }
 
-      const tasks = Object.entries(youtubeVideoData).map(
-        async ([youtube_id, data], index) => {
+      const tasks = youtube_ids?.map(
+        async (youtube_id: string, index: number) => {
           try {
-            console.log(`video id ${youtube_id} index ${index}`);
+            const data = youtubeVideoData[youtube_id];
             await addVideoToDbUsingEmbedding(
               youtube_id,
               course_id,
@@ -267,6 +274,7 @@ router.post(
           }
         }
       );
+
       const results = await Promise.allSettled(tasks);
 
       // Separate successes and failures
@@ -315,47 +323,47 @@ router.post(
   }
 );
 
-router.post("/get_youtube_transcripts", async (context: Context) => {
-  const body = await context.request.body.json();
-  const { youtube_ids } = body;
+// router.post("/get_youtube_transcripts", async (context: Context) => {
+//   const body = await context.request.body.json();
+//   const { youtube_ids } = body;
 
-  if (!youtube_ids || youtube_ids.length === 0) {
-    context.response.status = 400;
-    context.response.body = { error: "youtube_ids is required" };
-    return;
-  }
+//   if (!youtube_ids || youtube_ids.length === 0) {
+//     context.response.status = 400;
+//     context.response.body = { error: "youtube_ids is required" };
+//     return;
+//   }
 
-  const results: any[] = [];
-  const failedIds: string[] = [];
+//   const results: any[] = [];
+//   const failedIds: string[] = [];
 
-  // Run all fetches in parallel
-  const promises = youtube_ids.map(async (id: string) => {
-    try {
-      const data = await getVideoDataTranscriptThumbnail(id);
-      results.push({ youtube_id: id, ...data });
-    } catch (error) {
-      console.error(`Failed to fetch data for ID: ${id}`, error);
-      failedIds.push(id);
-    }
-  });
+//   // Run all fetches in parallel
+//   const promises = youtube_ids.map(async (id: string) => {
+//     try {
+//       const data = await getVideoDataTranscriptThumbnail(id);
+//       results.push({ youtube_id: id, ...data });
+//     } catch (error) {
+//       console.error(`Failed to fetch data for ID: ${id}`, error);
+//       failedIds.push(id);
+//     }
+//   });
 
-  await Promise.all(promises);
+//   await Promise.all(promises);
 
-  if (failedIds.length > 0) {
-    context.response.status = 400;
-    context.response.body = {
-      error: "Some YouTube videos failed to fetch",
-      failed_ids: failedIds.map((r) => r),
-    };
-    return;
-  }
+//   if (failedIds.length > 0) {
+//     context.response.status = 400;
+//     context.response.body = {
+//       error: "Some YouTube videos failed to fetch",
+//       failed_ids: failedIds.map((r) => r),
+//     };
+//     return;
+//   }
 
-  context.response.status = 200;
-  context.response.body = {
-    success: true,
-    videos: results,
-  };
-});
+//   context.response.status = 200;
+//   context.response.body = {
+//     success: true,
+//     videos: results,
+//   };
+// });
 
 router.post("/create_course", authenticateToken, async (context: Context) => {
   try {
