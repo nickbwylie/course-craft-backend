@@ -1079,6 +1079,7 @@
     "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.47.2",
     "https://esm.sh/openai@latest": "https://esm.sh/openai@4.82.0",
     "https://esm.sh/v135/@types/youtube-captions-scraper@latest/index.d.ts": "https://esm.sh/v135/@types/youtube-captions-scraper@1.0.0/index.d.ts",
+    "https://esm.sh/yocto-queue@^1.0.0?target=denonext": "https://esm.sh/yocto-queue@1.2.1?target=denonext",
     "https://esm.sh/youtube-captions-scraper": "https://esm.sh/youtube-captions-scraper@2.0.3"
   },
   "remote": {
@@ -1911,6 +1912,8 @@
     "https://esm.sh/openai@4.82.0/denonext/streaming.mjs": "41352dc5f63b9d551c8e14a0cba6c7ec6920e450633e98028613d99e249edc9f",
     "https://esm.sh/openai@4.82.0/denonext/uploads.mjs": "7ea8c01ee1bc338279325adfde44e2c7c2e37901293157be74eccd4cb52c0655",
     "https://esm.sh/openai@4.82.0/denonext/version.mjs": "47737ef5795b54c9be748c57d304a38b858f7618152f7f826449a3074a04e5a1",
+    "https://esm.sh/p-limit@4.0.0": "e8403b8d89d33ee110042ddf350544ce4be0056ae18f58bc4822ae2ab321ee37",
+    "https://esm.sh/p-limit@4.0.0/denonext/p-limit.mjs": "e5ae141058b710897927c6a437b3cc1e22661a9397224660e2136d4bd2700190",
     "https://esm.sh/v135/@supabase/auth-js@2.66.1/denonext/auth-js.mjs": "fe51228cc672098d33b8234ce4e00b2947541f7a0297af91f596e1ba92cdcdb0",
     "https://esm.sh/v135/@supabase/auth-js@2.66.1/denonext/dist/module/lib/helpers.js": "9ccb357c1fdc4227fddd021b7bce1244f3c20ae145557a5028ee3a3b81fcfee8",
     "https://esm.sh/v135/@supabase/auth-js@2.66.1/dist/module/lib/helpers.js": "87a42c7867e27114636e0186abaf2ac222fc012f2787fab041d54241e713100b",
@@ -2096,6 +2099,8 @@
     "https://esm.sh/v135/utf-8-validate@6.0.4/denonext/utf-8-validate.mjs": "ab4990b545a45f10f7711c69046ee3e9c5b732b9781937f922cefd3fc99d0e88",
     "https://esm.sh/v135/ws@8.18.0/denonext/ws.mjs": "b4c6f51c7c4d60d2a880889c9b07e00aa367adf20a8304a365cc5e09051a5004",
     "https://esm.sh/v135/youtube-captions-scraper@2.0.3/denonext/youtube-captions-scraper.mjs": "86b958c2517372cf605b7757a39ea83cacf6e4bbb53dd20eac0dee3cae44fe38",
+    "https://esm.sh/yocto-queue@1.2.1/denonext/yocto-queue.mjs": "9954d550783b3d0363f1c5de9a0bf0c6ca61ff81deaf706501a33443c7bd0df2",
+    "https://esm.sh/yocto-queue@1.2.1?target=denonext": "8e7e0743bc97983bf05b12a9f80b4ad07547c817d73cbb1e79472bbad345523c",
     "https://esm.sh/youtube-captions-scraper@2.0.3": "8c1f94800628c9a49ce9a8e55b3211eaadb8dae6e1d6671d476900f946449ffb",
     "https://jspm.dev/@aws-crypto/crc32": "5f229cf0fcddb56831d7d525778622c5ed1b40306556c3d1c1d685a3ff9c8b1b",
     "https://jspm.dev/@aws-sdk/hash-node": "f61b77f1ff5322f9470b5b090e571fe65d0cb7b945c3a20c4c78c4ecf69b94cb",

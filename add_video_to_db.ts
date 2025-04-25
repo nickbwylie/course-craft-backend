@@ -12,6 +12,11 @@ import {
 import { getSupabase } from "./supabaseClient.ts";
 import { getRelevantChunks, storeChunksInSupabase } from "./embeddings.ts";
 
+export function logTime(label: string, start: number) {
+  const elapsed = ((performance.now() - start) / 1000).toFixed(2);
+  console.log(`⏱️ ${label}: ${elapsed}s`);
+}
+
 export async function addVideoToDb(
   youtube_id: string,
   courseId: string,
@@ -120,6 +125,7 @@ export async function addVideoToDbUsingEmbedding(
     videoData.items[0]?.snippet?.thumbnails?.standard?.url ??
     videoData.items[0]?.snippet?.thumbnails?.default?.url;
 
+  const start = performance.now();
   // Add video to the database
   const video_id = await addVideo({
     title: videoData.items[0]?.snippet?.title,
@@ -134,21 +140,23 @@ export async function addVideoToDbUsingEmbedding(
     viewCount: videoData.items[0]?.statistics?.viewCount || "0",
   });
 
+  //logTime("adding video supabase db", start);
+
   if (!video_id) {
     throw new Error("Failed to add video to the database.");
   }
 
   await storeChunksInSupabase(video_id, transcript);
 
+  //logTime("stored chunks in supabase", start);
+
   const generalQueries = [
-    "What is this video about?",
-    "What are the key ideas explained?",
-    "What are the most important moments?",
-    "What should someone remember from this?",
-    "What steps, terms, or frameworks are discussed?",
+    "What is this video about? What are the key ideas explained, important moments, and main takeaways?",
   ];
 
   const chunks = await getRelevantChunks(generalQueries, video_id, transcript);
+
+  //logTime("got relevant chunks", start);
 
   const chunkedTranscript = chunks
     .map((chunk) => `- ${chunk.content.trim()}`)
@@ -163,6 +171,8 @@ export async function addVideoToDbUsingEmbedding(
     generateQuiz(chunkedTranscript, difficulty, questionCount),
   ]);
 
+  // logTime("generated summary and quiz", start);
+
   if (!summary) {
     throw new Error("Failed to generate summary.");
   }
@@ -174,6 +184,8 @@ export async function addVideoToDbUsingEmbedding(
   await addSummary(video_id, summary);
 
   await addQuiz(video_id, quiz);
+
+  // logTime("added summary and quiz to supabase", start);
 
   const uniqueId = crypto.randomUUID();
   const created_at = new Date().toISOString();

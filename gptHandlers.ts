@@ -1,3 +1,4 @@
+import { logTime } from "./add_video_to_db.ts";
 import { OPENAI_API_KEY } from "./env.ts";
 import { openai } from "./openaiClient.ts"; // Assuming OpenAI client setup
 import { encoding_for_model } from "npm:tiktoken";
@@ -5,6 +6,27 @@ import { encoding_for_model } from "npm:tiktoken";
 // Load the tokenizer for GPT-4o-mini
 const encoder = encoding_for_model("gpt-4o-mini");
 
+function chunkText(text: string, maxChunkLength: number): string[] {
+  const sentences = text.split(/(?<=[.?!])\s+/);
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  for (const sentence of sentences) {
+    // If adding this sentence exceeds the limit, push the current chunk and start a new one.
+    if (currentChunk.length + sentence.length + 1 > maxChunkLength) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+      currentChunk = sentence;
+    } else {
+      currentChunk += (currentChunk ? " " : "") + sentence;
+    }
+  }
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+  return chunks;
+}
 async function generateSummary(
   transcript: string,
   summary_detail: number // 1 to 5 (or whatever range you prefer)
@@ -14,8 +36,9 @@ async function generateSummary(
   const validSummaryDetail = Math.min(Math.max(summary_detail, 1), 5);
 
   try {
+    const start = performance.now();
     const response = await openai.chat.completions.create({
-      model: "gpt-4.1-mini-2025-04-14", // Use your preferred model
+      model: "gpt-4.1-nano-2025-04-14",
       messages: [
         {
           role: "system",
@@ -58,38 +81,17 @@ async function generateSummary(
       max_completion_tokens: 10000, // Increase if Level 5 summaries get cut off
       temperature: 0.6, // Slightly higher for creativity, but still focused
     });
-
+    logTime("Time to make the summary", start);
     const summary = response.choices[0].message?.content;
     // get tokens used
     const tokenUsage = response.usage;
     console.log(`token usage from summary ${tokenUsage?.total_tokens}`);
+
     return summary || null;
   } catch (error) {
     console.error("Error generating summary:", error);
     return null;
   }
-}
-
-function chunkText(text: string, maxChunkLength: number): string[] {
-  const sentences = text.split(/(?<=[.?!])\s+/);
-  const chunks: string[] = [];
-  let currentChunk = "";
-
-  for (const sentence of sentences) {
-    // If adding this sentence exceeds the limit, push the current chunk and start a new one.
-    if (currentChunk.length + sentence.length + 1 > maxChunkLength) {
-      if (currentChunk) {
-        chunks.push(currentChunk);
-      }
-      currentChunk = sentence;
-    } else {
-      currentChunk += (currentChunk ? " " : "") + sentence;
-    }
-  }
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-  return chunks;
 }
 
 export async function generateSmartSummary(
@@ -153,8 +155,9 @@ export async function generateQuiz(
   // Ensure valid difficulty and question count levels
   const validDifficulty = Math.min(Math.max(difficulty, 1), 5); // 1–5
   const questionRange =
-    questionCount === 1 ? "0-3" : questionCount === 2 ? "3-6" : "6-10";
+    questionCount === 1 ? "0-4" : questionCount === 2 ? "4-7" : "7-10";
 
+  const start = performance.now();
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -162,7 +165,7 @@ export async function generateQuiz(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-nano-2025-04-14",
       messages: [
         {
           role: "system",
@@ -198,10 +201,11 @@ export async function generateQuiz(
         },
         { role: "user", content: transcript },
       ],
-      max_completion_tokens: 2000,
+      max_completion_tokens: 5000,
       temperature: 0.5,
     }),
   });
+  logTime("time it took to make the quiz", start);
 
   const result = await response.json();
 

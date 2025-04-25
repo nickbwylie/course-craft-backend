@@ -1,6 +1,7 @@
 // transcript_embeddings.ts - Core functionality for processing transcripts with embeddings
 import { OPENAI_API_KEY } from "./env.ts";
 import { getSupabase } from "./supabaseClient.ts";
+import pLimit from "https://esm.sh/p-limit@4.0.0";
 
 export function chunkTranscript(text: string, maxWords = 400): string[] {
   const words = text.split(" ");
@@ -38,42 +39,55 @@ export async function getEmbedding(text: string): Promise<number[]> {
 
   const data = await res.json();
 
-  if (data?.usage) {
-    console.log("Embedding usage:", data.usage);
-  }
-
   return data.data[0].embedding;
 }
 
+// Optimized chunk storage with higher concurrency and logging
 export async function storeChunksInSupabase(
   videoId: string,
   transcript: string
 ) {
-  const chunks = chunkTranscript(transcript);
+  const chunks = chunkTranscript(transcript, 800); // Fewer, larger chunks
+  const concurrencyLimit = 8;
+  const limit = pLimit(concurrencyLimit);
 
-  // Limit concurrency if needed (e.g., 5 at a time)
-  const promises = chunks.map(async (content, i) => {
-    try {
-      const embedding = await getEmbedding(content);
+  const results = await Promise.all(
+    chunks.map((content, i) =>
+      limit(async () => {
+        try {
+          const embedding = await getEmbedding(content);
+          return {
+            video_id: videoId,
+            chunk_index: i,
+            content,
+            embedding: `[${embedding.join(",")}]`,
+          };
+        } catch (err) {
+          console.error(`❌ Error embedding chunk ${i}:`, err);
+          return null;
+        }
+      })
+    )
+  );
 
-      const { error } = await getSupabase()
-        .from("transcript_chunks")
-        .insert({
-          video_id: videoId,
-          chunk_index: i,
-          content,
-          embedding: `[${embedding.join(",")}]`,
-        });
+  const validChunks = results.filter(Boolean) as {
+    video_id: string;
+    chunk_index: number;
+    content: string;
+    embedding: string;
+  }[];
 
-      if (error) {
-        console.error(`Insert error at chunk ${i}:`, error.message);
-      }
-    } catch (err) {
-      console.error(`Failed processing chunk ${i}:`, err);
+  if (validChunks.length > 0) {
+    const { error } = await getSupabase()
+      .from("transcript_chunks")
+      .insert(validChunks);
+
+    if (error) {
+      console.error("❌ Supabase insert error:", error.message);
+    } else {
+      console.log("✅ Chunks successfully inserted.");
     }
-  });
-
-  await Promise.all(promises);
+  }
 }
 
 // Function to query Supabase RPC for relevant transcript chunks
@@ -85,9 +99,11 @@ export async function getRelevantChunks(
   const numChunks = getNumChunksToRetrieve(transcript);
   const allChunks: { [key: string]: any }[] = [];
 
-  for (const query of queries) {
-    const queryEmbedding = await getEmbedding(query);
+  const queryEmbeddings = await Promise.all(
+    queries.map((query) => getEmbedding(query))
+  );
 
+  for (const [i, queryEmbedding] of queryEmbeddings.entries()) {
     const { data, error } = await getSupabase().rpc("match_transcript_chunks", {
       query_embedding: `[${queryEmbedding.join(",")}]`,
       match_count: numChunks,
@@ -96,7 +112,7 @@ export async function getRelevantChunks(
 
     if (error) {
       console.error(
-        `Error retrieving chunks for query '${query}':`,
+        `Error retrieving chunks for query '${queries[i]}':`,
         error.message
       );
       continue;
@@ -105,7 +121,7 @@ export async function getRelevantChunks(
     if (data) allChunks.push(...data);
   }
 
-  // Deduplicate chunks by ID
+  // Deduplicate by ID
   const uniqueChunks = Array.from(
     new Map(allChunks.map((c) => [c.id, c])).values()
   );
