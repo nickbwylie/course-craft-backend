@@ -1,4 +1,3 @@
-import { logTime } from "./add_video_to_db.ts";
 import { OPENAI_API_KEY } from "./env.ts";
 import { openai } from "./openaiClient.ts"; // Assuming OpenAI client setup
 import { encoding_for_model } from "npm:tiktoken";
@@ -36,7 +35,6 @@ async function generateSummary(
   const validSummaryDetail = Math.min(Math.max(summary_detail, 1), 5);
 
   try {
-    const start = performance.now();
     const response = await openai.chat.completions.create({
       model: "gpt-4.1-nano-2025-04-14",
       messages: [
@@ -81,7 +79,6 @@ async function generateSummary(
       max_completion_tokens: 10000, // Increase if Level 5 summaries get cut off
       temperature: 0.6, // Slightly higher for creativity, but still focused
     });
-    logTime("Time to make the summary", start);
     const summary = response.choices[0].message?.content;
     // get tokens used
     const tokenUsage = response.usage;
@@ -205,7 +202,6 @@ export async function generateQuiz(
       temperature: 0.5,
     }),
   });
-  logTime("time it took to make the quiz", start);
 
   const result = await response.json();
 

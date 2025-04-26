@@ -6,7 +6,6 @@ import {
   addVideoToDb,
   addVideoToDbUsingEmbedding,
   getVideoDataTranscriptThumbnail,
-  logTime,
 } from "./add_video_to_db.ts";
 import { OPENAI_API_KEY } from "./env.ts";
 import { verify } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
@@ -212,8 +211,6 @@ router.post(
         }
       > = {};
       const failedIds: string[] = [];
-      const start = performance.now();
-      logTime("Starting the process", start);
 
       const getVideos = youtube_ids?.map(
         async (youtube_id: string, index: number) => {
@@ -231,8 +228,6 @@ router.post(
       );
 
       await Promise.allSettled(getVideos);
-
-      logTime("Got video data and transcript", start);
 
       if (failedIds.length > 0) {
         context.response.status = 400;
@@ -252,7 +247,6 @@ router.post(
         is_public: is_public,
       });
 
-      logTime("Added course to supabase", start);
       if (!course_id || status === "error") {
         console.log(status);
         throw new Error("failed to add course id");
@@ -282,8 +276,6 @@ router.post(
       );
 
       const results = await Promise.allSettled(tasks);
-
-      logTime("Finished add videos using embedding", start);
 
       // Separate successes and failures
       const success: string[] = [];
