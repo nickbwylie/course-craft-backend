@@ -19,6 +19,7 @@ import Stripe from "npm:stripe";
 import { tokenPackages, TokenPackages } from "./tokenPackage.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { courseStatusHandler } from "./courseStatusHandler.ts";
+import { deleteCourseById } from "./deleteCourse.ts";
 
 const WORKER_INTERVAL_MS = 300000; // 30 seconds
 
@@ -501,77 +502,8 @@ router.post("/delete_course", authenticateToken, async (context: Context) => {
 
     const { course_id } = body;
 
-    // get all video ids from course_videos with course_id
-    const { data: courseVideos, error: courseVideosError } = await getSupabase()
-      .from("course_videos")
-      .select("video_id")
-      .eq("course_id", course_id);
+    await deleteCourseById(course_id);
 
-    if (courseVideosError) {
-      context.response.status = 500;
-      context.response.body = {
-        error: "Error fetching courses",
-        courseVideosError,
-      };
-      return;
-    }
-
-    // delete all quizzes with video_id
-    const video_ids = courseVideos.map((video) => video.video_id);
-    const { data: quizData, error: quizError } = await getSupabase()
-      .from("quizzes")
-      .delete()
-      .in("video_id", video_ids);
-    if (quizError) {
-      context.response.status = 500;
-      context.response.body = { error: "Error deleting quizzes:", quizError };
-      return;
-    }
-
-    // delete all summaries with video_id
-    const { data: summaryData, error: summaryError } = await getSupabase()
-      .from("summaries")
-      .delete()
-      .in("video_id", video_ids);
-    if (summaryError) {
-      context.response.status = 500;
-      context.response.body = { error: "Error deleting summary", quizError };
-      return;
-    }
-
-    // delete all videos with video_id
-    const { data: videoData, error: videoError } = await getSupabase()
-      .from("videos")
-      .delete()
-      .in("video_id", video_ids);
-    if (videoError) {
-      context.response.status = 500;
-      context.response.body = { error: "Error deleting videos", quizError };
-      return;
-    }
-
-    // delete all course videos with course_id
-    const { data, error } = await getSupabase()
-      .from("course_videos")
-      .delete()
-      .eq("course_id", course_id);
-    if (error) {
-      context.response.status = 500;
-      context.response.body = {
-        error: "Error deleting course videos",
-        quizError,
-      };
-      return;
-    }
-
-    // delete videos
-
-    const res = await getSupabase()
-      .from("courses")
-      .delete()
-      .eq("id", course_id);
-
-    console.log("res from deleting course", res);
     context.response.status = 200;
     context.response.body = {
       message: `Course ${course_id} deleted successfully`,
@@ -579,7 +511,9 @@ router.post("/delete_course", authenticateToken, async (context: Context) => {
   } catch (error) {
     console.error("Error processing request:", error);
     context.response.status = 500;
-    context.response.body = { error: "Internal server error" };
+    context.response.body = {
+      error: (error as any).message || "Internal server error",
+    };
   }
 });
 
@@ -939,6 +873,34 @@ router.post(
       context.response.status = 401;
       context.response.body = { error: "Unauthorized" };
       return;
+    }
+
+    // now delete all of the users courses
+    // get all courses for this user
+    const { data: userCourses, error: coursesError } = await getSupabase()
+      .from("courses")
+      .select("id")
+      .eq("author_id", userId);
+
+    if (coursesError) {
+      context.response.status = 500;
+      context.response.body = { error: "Error fetching user courses" };
+      return;
+    }
+
+    try {
+      // Create an array of promises
+      const deletePromises = userCourses.map((course) =>
+        deleteCourseById(course.id)
+      );
+
+      // Wait for all deletions to finish in parallel
+      await Promise.all(deletePromises);
+
+      console.log("All courses deleted successfully.");
+    } catch (error) {
+      console.error("Error deleting user courses:", error);
+      // You can decide: maybe stop user deletion here, or continue?
     }
 
     try {
