@@ -11,6 +11,7 @@ import {
 } from "./gptHandlers.ts";
 import { getSupabase } from "./supabaseClient.ts";
 import { getRelevantChunks, storeChunksInSupabase } from "./embeddings.ts";
+import { processPendingJobs, processSingleJob } from "./process_jobs.ts";
 
 export async function addVideoToDb(
   youtube_id: string,
@@ -132,44 +133,12 @@ export async function addVideoToDbUsingEmbedding(
     tags: videoData.items[0]?.snippet?.tags || [],
     channelThumbnail,
     viewCount: videoData.items[0]?.statistics?.viewCount || "0",
+    transcript: transcript,
   });
 
   if (!video_id) {
     throw new Error("Failed to add video to the database.");
   }
-
-  await storeChunksInSupabase(video_id, transcript);
-
-  const generalQueries = [
-    "What is this video about? What are the key ideas explained, important moments, and main takeaways?",
-  ];
-
-  const chunks = await getRelevantChunks(generalQueries, video_id, transcript);
-
-  const chunkedTranscript = chunks
-    .map((chunk) => `- ${chunk.content.trim()}`)
-    .join("\n\n");
-
-  if (!video_id) {
-    throw new Error("Failed to add video to the database.");
-  }
-
-  const [summary, quiz] = await Promise.all([
-    generateSmartSummary(chunkedTranscript, summary_detail),
-    generateQuiz(chunkedTranscript, difficulty, questionCount),
-  ]);
-
-  if (!summary) {
-    throw new Error("Failed to generate summary.");
-  }
-
-  if (!quiz) {
-    throw new Error("Failed to generate quiz.");
-  }
-
-  await addSummary(video_id, summary);
-
-  await addQuiz(video_id, quiz);
 
   const uniqueId = crypto.randomUUID();
   const created_at = new Date().toISOString();
@@ -183,6 +152,34 @@ export async function addVideoToDbUsingEmbedding(
   });
 
   if (!res) throw new Error("failed to add to course videos");
+
+  const { data: jobInsertData, error } = await getSupabase()
+    .from("course_jobs")
+    .insert({
+      course_id: courseId,
+      video_id: video_id,
+      status: "pending",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  try {
+    if (!jobInsertData || !jobInsertData.id)
+      throw new Error("failed to add to course videos");
+    console.log("🔄 Immediately processing new job...");
+
+    processSingleJob(
+      jobInsertData.id,
+      summary_detail,
+      questionCount,
+      difficulty
+    );
+  } catch (err) {
+    console.error("❌ Error immediately processing new job:", err);
+    // Don't fail user-facing request even if background fails
+  }
 
   return { status: "success", video_id };
 }

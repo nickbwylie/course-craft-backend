@@ -33,6 +33,33 @@ export type Database = {
         }
         Relationships: []
       }
+      course_jobs: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          id: string
+          status: string
+          updated_at: string | null
+          video_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          id?: string
+          status?: string
+          updated_at?: string | null
+          video_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          id?: string
+          status?: string
+          updated_at?: string | null
+          video_id?: string
+        }
+        Relationships: []
+      }
       course_videos: {
         Row: {
           course_id: string | null
@@ -231,6 +258,7 @@ export type Database = {
           tags: Json | null
           thumbnail_url: string | null
           title: string | null
+          transcript: string | null
           video_id: string
           view_count: string | null
           youtube_id: string
@@ -245,6 +273,7 @@ export type Database = {
           tags?: Json | null
           thumbnail_url?: string | null
           title?: string | null
+          transcript?: string | null
           video_id: string
           view_count?: string | null
           youtube_id?: string
@@ -259,6 +288,7 @@ export type Database = {
           tags?: Json | null
           thumbnail_url?: string | null
           title?: string | null
+          transcript?: string | null
           video_id?: string
           view_count?: string | null
           youtube_id?: string
@@ -294,6 +324,8 @@ export type Database = {
           view_count: string
           published_at: string
           order_by: number
+          public: boolean
+          author_id: string
         }[]
       }
       get_admin_courses_with_first_video_and_duration: {
@@ -348,6 +380,8 @@ export type Database = {
           view_count: string
           published_at: string
           order_by: number
+          public: boolean
+          author_id: string
         }[]
       }
       get_course_info: {

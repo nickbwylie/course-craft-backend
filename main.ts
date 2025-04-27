@@ -18,6 +18,9 @@ import { autoGenerateTitleDescription } from "./gptHandlers.ts";
 import Stripe from "npm:stripe";
 import { tokenPackages, TokenPackages } from "./tokenPackage.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { courseStatusHandler } from "./courseStatusHandler.ts";
+
+const WORKER_INTERVAL_MS = 300000; // 30 seconds
 
 const YOUR_DOMAIN =
   process.env.NODE_ENV === "development"
@@ -615,6 +618,8 @@ router.post(
     }
   }
 );
+
+router.get("/api/course_status", courseStatusHandler);
 
 function splitTextByLength(text: string, maxChunkLength = 2800): string[] {
   const sentences = text.match(/[^\.!\?]+[\.!\?]+/g) || [text]; // basic sentence split
