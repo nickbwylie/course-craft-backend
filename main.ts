@@ -30,7 +30,7 @@ const YOUR_DOMAIN =
 const env = await load();
 const SUPABASE_JWT_SECRET = env.SUPABASE_JWT_SECRET;
 
-const stripe = new Stripe(env.STRIPE_TEST_SCECRET_KEY, {
+const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-03-31.basil",
 });
 

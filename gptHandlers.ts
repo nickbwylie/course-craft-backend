@@ -36,7 +36,7 @@ async function generateSummary(
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4.1-nano-2025-04-14",
+      model: "gpt-4.1-mini-2025-04-14",
       messages: [
         {
           role: "system",
@@ -155,7 +155,7 @@ export async function generateQuiz(
     questionCount === 1 ? "0-4" : questionCount === 2 ? "4-7" : "7-10";
 
   const start = performance.now();
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch("gpt-4.1-mini-2025-04-14", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
