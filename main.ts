@@ -687,6 +687,14 @@ router.post(
         .eq("id", userId)
         .single();
 
+      if (!user || !user.data?.stripe_customer_id) {
+        context.response.status = 500;
+        context.response.body = {
+          error: "No user found or no stripe customer id found",
+        };
+        return;
+      }
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         mode: "payment",
@@ -726,7 +734,7 @@ router.post("/api/webhook/stripe", async (context: Context) => {
       event = await stripe.webhooks.constructEventAsync(
         rawBody,
         signature,
-        env.STRIPE_WEBHOOK_SECRET
+        env.STRIPE_LIVE_WEBHOOK
       );
     } catch (err: any) {
       console.error(`Webhook signature verification failed: ${err?.message}`);
@@ -735,13 +743,36 @@ router.post("/api/webhook/stripe", async (context: Context) => {
       return;
     }
 
+    const supabaseAdmin = createClient(
+      env.SUPABASE_URL,
+      env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { data: existingEvent } = await supabaseAdmin
+      .from("stripe_webhook_events")
+      .select("id")
+      .eq("id", event.id)
+      .maybeSingle();
+
+    if (existingEvent) {
+      console.log("Duplicate event, skipping:", event.id);
+      context.response.status = 200;
+      return;
+    }
+
+    const { error: insertError } = await supabaseAdmin
+      .from("stripe_webhook_events")
+      .insert([{ id: event.id }]);
+
+    if (insertError) {
+      console.error("Failed to insert event ID", insertError);
+      context.response.status = 500;
+      return;
+    }
+
     // Handle different event types
     switch (event.type) {
       case "checkout.session.completed": {
-        const supabaseAdmin = createClient(
-          env.SUPABASE_URL,
-          env.SUPABASE_SERVICE_ROLE_KEY
-        );
         const session = event.data.object as Stripe.Checkout.Session;
 
         const stripeCustomerId = session.customer as string;

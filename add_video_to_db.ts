@@ -10,8 +10,11 @@ import {
   generateSmartSummary,
 } from "./gptHandlers.ts";
 import { getSupabase } from "./supabaseClient.ts";
-import { getRelevantChunks, storeChunksInSupabase } from "./embeddings.ts";
-import { processPendingJobs, processSingleJob } from "./process_jobs.ts";
+import { processSingleJob } from "./process_jobs.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { load } from "https://deno.land/std@0.224.0/dotenv/mod.ts";
+
+const env = await load();
 
 export async function addVideoToDb(
   youtube_id: string,
@@ -143,7 +146,12 @@ export async function addVideoToDbUsingEmbedding(
   const uniqueId = crypto.randomUUID();
   const created_at = new Date().toISOString();
 
-  const res = await getSupabase().from("course_videos").insert({
+  const supabaseAdmin = createClient(
+    env.SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
+  const res = await supabaseAdmin.from("course_videos").insert({
     id: uniqueId,
     course_id: courseId,
     video_id: video_id,
@@ -153,7 +161,7 @@ export async function addVideoToDbUsingEmbedding(
 
   if (!res) throw new Error("failed to add to course videos");
 
-  const { data: jobInsertData, error } = await getSupabase()
+  const { data: jobInsertData, error } = await supabaseAdmin
     .from("course_jobs")
     .insert({
       course_id: courseId,

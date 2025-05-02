@@ -10,84 +10,84 @@ import {
 } from "https://esm.sh/@supabase/supabase-js@2";
 
 const env = await load();
-export async function processPendingJobs() {
-  const supabase = getSupabase();
+// export async function processPendingJobs() {
+//   const supabase = getSupabase();
 
-  const { data: jobs } = await supabase
-    .from("course_jobs")
-    .select("*")
-    .eq("status", "pending")
-    .limit(5);
+//   const { data: jobs } = await supabase
+//     .from("course_jobs")
+//     .select("*")
+//     .eq("status", "pending")
+//     .limit(5);
 
-  if (!jobs || jobs.length === 0) {
-    console.log("No pending jobs.");
-    return;
-  }
+//   if (!jobs || jobs.length === 0) {
+//     console.log("No pending jobs.");
+//     return;
+//   }
 
-  for (const job of jobs) {
-    try {
-      console.log(`Processing job ${job.id}`);
+//   for (const job of jobs) {
+//     try {
+//       console.log(`Processing job ${job.id}`);
 
-      // Update status to 'processing'
-      await supabase
-        .from("course_jobs")
-        .update({ status: "processing", updated_at: new Date().toISOString() })
-        .eq("id", job.id);
+//       // Update status to 'processing'
+//       await supabase
+//         .from("course_jobs")
+//         .update({ status: "processing", updated_at: new Date().toISOString() })
+//         .eq("id", job.id);
 
-      // Fetch video data and transcript
-      const { data: video } = await supabase
-        .from("videos")
-        .select("*")
-        .eq("id", job.video_id)
-        .single();
+//       // Fetch video data and transcript
+//       const { data: video } = await supabase
+//         .from("videos")
+//         .select("*")
+//         .eq("id", job.video_id)
+//         .single();
 
-      if (!video) throw new Error("Video not found");
+//       if (!video) throw new Error("Video not found");
 
-      // Assume you have transcript inside video table or fetch externally
-      const transcript = video.transcript || "";
+//       // Assume you have transcript inside video table or fetch externally
+//       const transcript = video.transcript || "";
 
-      await storeChunksInSupabase(job.video_id, transcript);
+//       await storeChunksInSupabase(job.video_id, transcript);
 
-      const chunks = await getRelevantChunks(
-        ["What is this video about? Key ideas and important moments?"],
-        job.video_id,
-        transcript
-      );
+//       const chunks = await getRelevantChunks(
+//         ["What is this video about? Key ideas and important moments?"],
+//         job.video_id,
+//         transcript
+//       );
 
-      const chunkedTranscript = chunks
-        .map((c) => `- ${c.content.trim()}`)
-        .join("\n\n");
+//       const chunkedTranscript = chunks
+//         .map((c) => `- ${c.content.trim()}`)
+//         .join("\n\n");
 
-      const [summary, quiz] = await Promise.all([
-        generateSmartSummary(chunkedTranscript, 3),
-        generateQuiz(chunkedTranscript, 3, 5),
-      ]);
+//       const [summary, quiz] = await Promise.all([
+//         generateSmartSummary(chunkedTranscript, 3),
+//         generateQuiz(chunkedTranscript, 3, 5),
+//       ]);
 
-      if (!summary || !quiz)
-        throw new Error("Failed to generate summary or quiz");
+//       if (!summary || !quiz)
+//         throw new Error("Failed to generate summary or quiz");
 
-      // Insert into your summaries and quizzes table
-      await addSummary(job.video_id, summary);
+//       // Insert into your summaries and quizzes table
+//       await addSummary(job.video_id, summary);
 
-      await addQuiz(job.video_id, quiz);
+//       await addQuiz(job.video_id, quiz);
 
-      // Update status to 'completed'
-      await supabase
-        .from("course_jobs")
-        .update({ status: "completed", updated_at: new Date().toISOString() })
-        .eq("id", job.id);
+//       // Update status to 'completed'
+//       await supabase
+//         .from("course_jobs")
+//         .update({ status: "completed", updated_at: new Date().toISOString() })
+//         .eq("id", job.id);
 
-      console.log(`✅ Job ${job.id} completed`);
-    } catch (err) {
-      console.error(`❌ Error processing job ${job.id}:`, err);
+//       console.log(`✅ Job ${job.id} completed`);
+//     } catch (err) {
+//       console.error(`❌ Error processing job ${job.id}:`, err);
 
-      await getSupabase()
-        .from("course_jobs")
-        .update({ status: "failed", updated_at: new Date().toISOString() })
-        .eq("id", job.id);
-    }
-  }
-}
+//       await getSupabase()
+//         .from("course_jobs")
+//         .update({ status: "failed", updated_at: new Date().toISOString() })
+//         .eq("id", job.id);
+//     }
+//   }
+// }
 
 export async function adminSummary(
   supabaseClient: SupabaseClient,
@@ -231,7 +231,6 @@ export async function processSingleJob(
     console.log(`✅ Job ${job.id} completed`);
   } catch (err) {
     console.error(`❌ Error processing job ${job.id}:`, err);
-
     await supabaseAdmin
       .from("course_jobs")
       .update({ status: "failed", updated_at: new Date().toISOString() })
