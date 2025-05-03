@@ -1,7 +1,10 @@
 // transcript_embeddings.ts - Core functionality for processing transcripts with embeddings
+import { load } from "https://deno.land/std/dotenv/mod.ts";
 import { OPENAI_API_KEY } from "./env.ts";
-import { getSupabase } from "./supabaseClient.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import pLimit from "https://esm.sh/p-limit@4.0.0";
+
+const env = await load();
 
 export function chunkTranscript(text: string, maxWords = 400): string[] {
   const words = text.split(" ");
@@ -78,7 +81,12 @@ export async function storeChunksInSupabase(
   }[];
 
   if (validChunks.length > 0) {
-    const { error } = await getSupabase()
+    const supabaseAdmin = createClient(
+      env.SUPABASE_URL,
+      env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
+    const { error } = await supabaseAdmin
       .from("transcript_chunks")
       .insert(validChunks);
 
@@ -103,8 +111,13 @@ export async function getRelevantChunks(
     queries.map((query) => getEmbedding(query))
   );
 
+  const supabaseAdmin = createClient(
+    env.SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
   for (const [i, queryEmbedding] of queryEmbeddings.entries()) {
-    const { data, error } = await getSupabase().rpc("match_transcript_chunks", {
+    const { data, error } = await supabaseAdmin.rpc("match_transcript_chunks", {
       query_embedding: `[${queryEmbedding.join(",")}]`,
       match_count: numChunks,
       video_id: videoId,

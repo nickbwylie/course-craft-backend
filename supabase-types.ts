@@ -167,6 +167,21 @@ export type Database = {
           },
         ]
       }
+      stripe_webhook_events: {
+        Row: {
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
       summaries: {
         Row: {
           created_at: string
@@ -300,6 +315,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_credits_if_not_processed: {
+        Args: {
+          stripe_event_id: string
+          stripe_customer_id: string
+          credits_to_add: number
+        }
+        Returns: undefined
+      }
       binary_quantize: {
         Args: { "": string } | { "": unknown }
         Returns: unknown
