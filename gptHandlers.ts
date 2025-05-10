@@ -5,6 +5,27 @@ import { encoding_for_model } from "npm:tiktoken";
 // Load the tokenizer for GPT-4o-mini
 const encoder = encoding_for_model("gpt-4o-mini");
 
+function chunkText(text: string, maxChunkLength: number): string[] {
+  const sentences = text.split(/(?<=[.?!])\s+/);
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  for (const sentence of sentences) {
+    // If adding this sentence exceeds the limit, push the current chunk and start a new one.
+    if (currentChunk.length + sentence.length + 1 > maxChunkLength) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+      currentChunk = sentence;
+    } else {
+      currentChunk += (currentChunk ? " " : "") + sentence;
+    }
+  }
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+  return chunks;
+}
 async function generateSummary(
   transcript: string,
   summary_detail: number // 1 to 5 (or whatever range you prefer)
@@ -15,7 +36,7 @@ async function generateSummary(
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Use your preferred model
+      model: "gpt-4.1-mini-2025-04-14",
       messages: [
         {
           role: "system",
@@ -58,11 +79,11 @@ async function generateSummary(
       max_completion_tokens: 10000, // Increase if Level 5 summaries get cut off
       temperature: 0.6, // Slightly higher for creativity, but still focused
     });
-
     const summary = response.choices[0].message?.content;
     // get tokens used
     const tokenUsage = response.usage;
-    console.log("token usage", tokenUsage);
+    console.log(`token usage from summary ${tokenUsage?.total_tokens}`);
+
     return summary || null;
   } catch (error) {
     console.error("Error generating summary:", error);
@@ -70,28 +91,12 @@ async function generateSummary(
   }
 }
 
-function chunkText(text: string, maxChunkLength: number): string[] {
-  const sentences = text.split(/(?<=[.?!])\s+/);
-  const chunks: string[] = [];
-  let currentChunk = "";
-
-  for (const sentence of sentences) {
-    // If adding this sentence exceeds the limit, push the current chunk and start a new one.
-    if (currentChunk.length + sentence.length + 1 > maxChunkLength) {
-      if (currentChunk) {
-        chunks.push(currentChunk);
-      }
-      currentChunk = sentence;
-    } else {
-      currentChunk += (currentChunk ? " " : "") + sentence;
-    }
-  }
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-  return chunks;
+export async function generateSmartSummary(
+  transcript: string,
+  summary_detail: number
+): Promise<string | null> {
+  return await generateSummary(transcript, summary_detail);
 }
-
 /**
  * Generates a summary for each chunk and then a final summary for the combined intermediate summaries.
  */
@@ -147,8 +152,9 @@ export async function generateQuiz(
   // Ensure valid difficulty and question count levels
   const validDifficulty = Math.min(Math.max(difficulty, 1), 5); // 1–5
   const questionRange =
-    questionCount === 1 ? "0-3" : questionCount === 2 ? "3-6" : "6-10";
+    questionCount === 1 ? "0-4" : questionCount === 2 ? "4-7" : "7-10";
 
+  const start = performance.now();
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -156,7 +162,7 @@ export async function generateQuiz(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini-2025-04-14",
       messages: [
         {
           role: "system",
@@ -192,12 +198,18 @@ export async function generateQuiz(
         },
         { role: "user", content: transcript },
       ],
-      max_completion_tokens: 2000,
+      max_completion_tokens: 5000,
       temperature: 0.5,
     }),
   });
 
   const result = await response.json();
+
+  console.log("quiz usage", result.usage);
+  if (!result.choices || result.choices.length === 0) {
+    console.error("No choices returned from OpenAI API.");
+    return null;
+  }
 
   try {
     const questions = JSON.parse(result.choices[0].message.content);
@@ -225,4 +237,50 @@ export async function generateQuiz(
     console.error("Invalid response format:", error);
     return null;
   }
+}
+
+export async function autoGenerateTitleDescription(
+  videoInfo: { title: string; channel: string }[]
+): Promise<{ title: string; description: string }> {
+  const response = await openai.chat.completions.create({
+    model: "gpt-4.1-nano-2025-04-14",
+    messages: [
+      {
+        role: "system",
+        content: `
+You are an expert course creator and video-content strategist.
+Task: Generate a course title and description based on a list of YouTube videos.
+
+Requirements:
+• Title:
+  – Must be 2–60 characters (inclusive).
+  – Catchy, summarizes the core theme.
+• Description:
+  – Must be 10–500 characters (inclusive).
+  – Highlights key learning outcomes, structure, and benefits.
+• Output only a JSON object with exactly two keys: "title" and "description".
+  No extra text, no markdown, no explanations.
+
+Example output:
+{"title":"Mastering React Hooks","description":"In this course, you’ll learn to build dynamic React apps using Hooks—covering useState, useEffect, custom hooks, and best practices to write cleaner, more maintainable code."}
+        `.trim(),
+      },
+      {
+        role: "user",
+        content: `Here’s the video info (titles + channels):\n${JSON.stringify(
+          videoInfo,
+          null,
+          2
+        )}`,
+      },
+    ],
+    max_completion_tokens: 300,
+    temperature: 0.7,
+  });
+
+  const raw = response.choices[0].message?.content;
+  if (!raw) throw new Error("Failed to generate title and description.");
+
+  // parse and return
+  return JSON.parse(raw);
 }
