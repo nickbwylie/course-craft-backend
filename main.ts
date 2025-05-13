@@ -216,7 +216,12 @@ router.post(
         async (youtube_id: string, index: number) => {
           try {
             const data = await getVideoDataTranscriptThumbnail(youtube_id);
-            youtubeVideoData[youtube_id] = { ...data };
+
+            if (!data.transcript) {
+              failedIds.push(youtube_id);
+            } else {
+              youtubeVideoData[youtube_id] = { ...data };
+            }
           } catch (error) {
             console.error(
               `Failed to fetch data for ID: ${youtubeVideoData}`,
