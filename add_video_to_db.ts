@@ -2,6 +2,7 @@ import {
   fetchChannelThumbnail,
   fetchYouTubeVideo,
   getCaptions,
+  getSubs,
 } from "./youtubeApi.ts";
 import { addVideo, addSummary, addQuiz } from "./database.ts";
 import {
@@ -101,7 +102,7 @@ export async function getVideoDataTranscriptThumbnail(
 
   const [channelThumbnail, transcript] = await Promise.all([
     fetchChannelThumbnail(channelId),
-    getCaptions(youtube_id),
+    getSubs({ videoId: youtube_id }),
   ]);
 
   return { videoData, transcript, channelThumbnail };
