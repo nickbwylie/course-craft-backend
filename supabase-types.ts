@@ -9,6 +9,57 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      analytics: {
+        Row: {
+          created_at: string
+          event_name: string
+          id: number
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_name?: string
+          id?: number
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_name?: string
+          id?: number
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      course_jobs: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          id: string
+          status: string
+          updated_at: string | null
+          video_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          id?: string
+          status?: string
+          updated_at?: string | null
+          video_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          id?: string
+          status?: string
+          updated_at?: string | null
+          video_id?: string
+        }
+        Relationships: []
+      }
       course_videos: {
         Row: {
           course_id: string | null
@@ -50,6 +101,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          admin: boolean
           author_id: string | null
           course_difficulty: number
           created_at: string
@@ -58,8 +110,10 @@ export type Database = {
           id: string
           public: boolean | null
           title: string | null
+          view_count: number
         }
         Insert: {
+          admin?: boolean
           author_id?: string | null
           course_difficulty?: number
           created_at?: string
@@ -68,8 +122,10 @@ export type Database = {
           id?: string
           public?: boolean | null
           title?: string | null
+          view_count?: number
         }
         Update: {
+          admin?: boolean
           author_id?: string | null
           course_difficulty?: number
           created_at?: string
@@ -78,6 +134,7 @@ export type Database = {
           id?: string
           public?: boolean | null
           title?: string | null
+          view_count?: number
         }
         Relationships: []
       }
@@ -110,6 +167,21 @@ export type Database = {
           },
         ]
       }
+      stripe_webhook_events: {
+        Row: {
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
       summaries: {
         Row: {
           created_at: string
@@ -139,66 +211,54 @@ export type Database = {
           },
         ]
       }
-      user_progress: {
+      transcript_chunks: {
         Row: {
-          created_at: string
+          chunk_index: number | null
+          content: string | null
+          embedding: string | null
           id: string
-          progress: boolean | null
-          quiz_completed: boolean | null
-          user_id: string | null
           video_id: string | null
         }
         Insert: {
-          created_at?: string
+          chunk_index?: number | null
+          content?: string | null
+          embedding?: string | null
           id?: string
-          progress?: boolean | null
-          quiz_completed?: boolean | null
-          user_id?: string | null
           video_id?: string | null
         }
         Update: {
-          created_at?: string
+          chunk_index?: number | null
+          content?: string | null
+          embedding?: string | null
           id?: string
-          progress?: boolean | null
-          quiz_completed?: boolean | null
-          user_id?: string | null
           video_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_progress_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_progress_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "videos"
-            referencedColumns: ["video_id"]
-          },
-        ]
+        Relationships: []
       }
       users: {
         Row: {
           created_at: string
+          credits: number
           email: string | null
           id: string
-          name: string | null
+          paid: boolean
+          stripe_customer_id: string | null
         }
         Insert: {
           created_at?: string
+          credits?: number
           email?: string | null
           id?: string
-          name?: string | null
+          paid?: boolean
+          stripe_customer_id?: string | null
         }
         Update: {
           created_at?: string
+          credits?: number
           email?: string | null
           id?: string
-          name?: string | null
+          paid?: boolean
+          stripe_customer_id?: string | null
         }
         Relationships: []
       }
@@ -213,7 +273,9 @@ export type Database = {
           tags: Json | null
           thumbnail_url: string | null
           title: string | null
+          transcript: string | null
           video_id: string
+          view_count: string | null
           youtube_id: string
         }
         Insert: {
@@ -226,7 +288,9 @@ export type Database = {
           tags?: Json | null
           thumbnail_url?: string | null
           title?: string | null
+          transcript?: string | null
           video_id: string
+          view_count?: string | null
           youtube_id?: string
         }
         Update: {
@@ -239,7 +303,9 @@ export type Database = {
           tags?: Json | null
           thumbnail_url?: string | null
           title?: string | null
+          transcript?: string | null
           video_id?: string
+          view_count?: string | null
           youtube_id?: string
         }
         Relationships: []
@@ -249,10 +315,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      filtered_course_details: {
+      add_credits_if_not_processed: {
         Args: {
-          course_id: string
+          stripe_event_id: string
+          stripe_customer_id: string
+          credits_to_add: number
         }
+        Returns: undefined
+      }
+      binary_quantize: {
+        Args: { "": string } | { "": unknown }
+        Returns: unknown
+      }
+      filtered_course_details: {
+        Args: { course_id: string }
         Returns: {
           course_id: string
           course_title: string
@@ -266,12 +342,35 @@ export type Database = {
           youtube_id: string
           course_difficulty: number
           detaillevel: string
+          channel_thumbnail: string
+          channel_title: string
+          view_count: string
+          published_at: string
+          order_by: number
+          public: boolean
+          author_id: string
+        }[]
+      }
+      get_admin_courses_with_first_video_and_duration: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          course_id: string
+          course_title: string
+          course_description: string
+          video_id: string
+          video_title: string
+          thumbnail_url: string
+          total_duration: string
+          total_videos: number
+          created_at: string
+          course_difficulty: number
+          detaillevel: string
+          public: boolean
+          view_count: number
         }[]
       }
       get_course_data: {
-        Args: {
-          course_id: string
-        }
+        Args: { course_id: string }
         Returns: {
           course_id: string
           course_title: string
@@ -285,9 +384,7 @@ export type Database = {
         }[]
       }
       get_course_details: {
-        Args: {
-          course_id: string
-        }
+        Args: { course_id: string }
         Returns: {
           course_id: string
           course_title: string
@@ -301,12 +398,17 @@ export type Database = {
           youtube_id: string
           course_difficulty: number
           detaillevel: string
+          channel_thumbnail: string
+          channel_title: string
+          view_count: string
+          published_at: string
+          order_by: number
+          public: boolean
+          author_id: string
         }[]
       }
       get_course_info: {
-        Args: {
-          course_id: string
-        }
+        Args: { course_id: string }
         Returns: {
           course_id: string
           course_title: string
@@ -348,9 +450,7 @@ export type Database = {
         }[]
       }
       get_user_courses_with_first_video_and_duration: {
-        Args: {
-          user_id: string
-        }
+        Args: { user_id: string }
         Returns: {
           course_id: string
           course_title: string
@@ -364,7 +464,115 @@ export type Database = {
           course_difficulty: number
           detaillevel: string
           public: boolean
+          view_count: number
         }[]
+      }
+      halfvec_avg: {
+        Args: { "": number[] }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      increment_view_count: {
+        Args: { course_id: string }
+        Returns: number
+      }
+      ivfflat_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      l2_norm: {
+        Args: { "": unknown } | { "": unknown }
+        Returns: number
+      }
+      l2_normalize: {
+        Args: { "": string } | { "": unknown } | { "": unknown }
+        Returns: string
+      }
+      match_transcript_chunks: {
+        Args:
+          | { query_embedding: string; match_count: number; video_id: string }
+          | {
+              query_embedding: string
+              match_threshold: number
+              match_count: number
+              video_id: string
+            }
+        Returns: {
+          id: string
+          content: string
+          similarity: number
+        }[]
+      }
+      sparsevec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      vector_avg: {
+        Args: { "": number[] }
+        Returns: string
+      }
+      vector_dims: {
+        Args: { "": string } | { "": unknown }
+        Returns: number
+      }
+      vector_norm: {
+        Args: { "": string }
+        Returns: number
+      }
+      vector_out: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: { "": string }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
       }
     }
     Enums: {
@@ -376,27 +584,29 @@ export type Database = {
   }
 }
 
-type PublicSchema = Database[Extract<keyof Database, "public">]
+type DefaultSchema = Database[Extract<keyof Database, "public">]
 
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -404,20 +614,22 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -425,20 +637,22 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -446,21 +660,23 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
     | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof PublicSchema["CompositeTypes"]
+    | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof Database },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof Database
@@ -469,6 +685,12 @@ export type CompositeTypes<
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
   ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
-    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
